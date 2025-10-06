@@ -35,6 +35,9 @@ import {
   type Attempt,
 } from "@/lib/types";
 import { PythonPlayground } from "@/components/python-playground";
+import { TypeScriptEditor } from "@/components/typescript-playground";
+import { MarkdownEditor } from "@/components/markdown-editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 
 export default function ProblemPage() {
@@ -81,6 +84,7 @@ export default function ProblemPage() {
           targetTime: data.target_time,
           notes: data.notes,
           solution: data.solution,
+          solutionTypeScript: data.solution_typescript || undefined,
           mistakes: (data.mistakes as string[]) || [],
           leetcodeUrl: data.leetcode_url || undefined,
         };
@@ -125,6 +129,7 @@ export default function ProblemPage() {
           confidence: editedProblem.confidence,
           notes: editedProblem.notes,
           solution: editedProblem.solution,
+          solution_typescript: editedProblem.solutionTypeScript || null,
           leetcode_url: editedProblem.leetcodeUrl || null,
         })
         .eq("id", editedProblem.id);
@@ -185,6 +190,12 @@ export default function ProblemPage() {
   const handleCodeChange = (newCode: string) => {
     if (editedProblem) {
       setEditedProblem({ ...editedProblem, solution: newCode });
+    }
+  };
+
+  const handleTypeScriptCodeChange = (newCode: string) => {
+    if (editedProblem) {
+      setEditedProblem({ ...editedProblem, solutionTypeScript: newCode });
     }
   };
 
@@ -439,23 +450,21 @@ export default function ProblemPage() {
           <Label className="text-base font-semibold mb-2 block">
             Your Approach
           </Label>
-          {isEditing ? (
-            <Textarea
-              value={editedProblem?.approach || ""}
-              onChange={(e) =>
-                setEditedProblem(
-                  editedProblem
-                    ? { ...editedProblem, approach: e.target.value }
-                    : null
-                )
-              }
-              rows={4}
-            />
-          ) : (
-            <p className="text-muted-foreground whitespace-pre-wrap">
-              {currentProblem.approach || "No approach saved"}
-            </p>
-          )}
+          <MarkdownEditor
+            value={
+              isEditing
+                ? editedProblem?.approach || ""
+                : currentProblem.approach || ""
+            }
+            onChange={(value) =>
+              isEditing &&
+              setEditedProblem(
+                editedProblem ? { ...editedProblem, approach: value } : null
+              )
+            }
+            placeholder="Explain your approach..."
+            readOnly={!isEditing}
+          />
         </div>
 
         {/* Notes */}
@@ -481,20 +490,57 @@ export default function ProblemPage() {
           )}
         </div>
 
-        {/* Solution with Python Playground */}
+        {/* Solution with Code Playground */}
         <div>
           <Label className="text-base font-semibold mb-2 block">
             Solution Code & Playground
           </Label>
-          <PythonPlayground
-            initialCode={
-              currentProblem.solution ||
-              "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
-            }
-            onCodeChange={isEditing ? handleCodeChange : undefined}
-            readOnly={!isEditing}
-            height="600px"
-          />
+          <Tabs defaultValue="python" className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="python">Python</TabsTrigger>
+              <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+            </TabsList>
+            <TabsContent value="python">
+              <PythonPlayground
+                initialCode={
+                  currentProblem.solution ||
+                  "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
+                }
+                onCodeChange={isEditing ? handleCodeChange : undefined}
+                readOnly={!isEditing}
+                height="600px"
+                onExpand={() =>
+                  router.push(
+                    `/playground/${
+                      currentProblem.id
+                    }?lang=python&readOnly=${!isEditing}`
+                  )
+                }
+                showExpandButton={true}
+              />
+            </TabsContent>
+            <TabsContent value="typescript">
+              <TypeScriptEditor
+                initialCode={
+                  currentProblem.solutionTypeScript ||
+                  "// Write your TypeScript solution here\nfunction solution(): void {\n  // Your code\n}\n\nconsole.log(solution());"
+                }
+                onCodeChange={
+                  isEditing ? handleTypeScriptCodeChange : undefined
+                }
+                readOnly={!isEditing}
+                height="600px"
+                onExpand={() =>
+                  router.push(
+                    `/playground/${
+                      currentProblem.id
+                    }?lang=typescript&readOnly=${!isEditing}`
+                  )
+                }
+                showExpandButton={true}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* LeetCode URL */}

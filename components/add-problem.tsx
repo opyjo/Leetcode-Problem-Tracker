@@ -29,11 +29,17 @@ import {
   getTargetTime,
 } from "@/lib/types";
 import { PythonPlayground } from "@/components/python-playground";
+import { TypeScriptEditor } from "@/components/typescript-playground";
+import { MarkdownEditor } from "@/components/markdown-editor";
+import { FullscreenPlayground } from "@/components/fullscreen-playground";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 
 export function AddProblem() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showFullscreenPlayground, setShowFullscreenPlayground] =
+    useState(false);
   const [formData, setFormData] = useState({
     name: "",
     pattern: "",
@@ -42,6 +48,7 @@ export function AddProblem() {
     approach: "",
     notes: "",
     solution: "",
+    solutionTypeScript: "",
     leetcodeUrl: "",
   });
 
@@ -83,6 +90,7 @@ export function AddProblem() {
         target_time: getTargetTime(difficulty),
         notes: formData.notes || "",
         solution: formData.solution || "",
+        solution_typescript: formData.solutionTypeScript || null,
         mistakes: [],
         leetcode_url: formData.leetcodeUrl || null,
       });
@@ -105,6 +113,7 @@ export function AddProblem() {
         approach: "",
         notes: "",
         solution: "",
+        solutionTypeScript: "",
         leetcodeUrl: "",
       });
 
@@ -205,29 +214,51 @@ export function AddProblem() {
 
           <div className="space-y-2">
             <Label htmlFor="approach">Your Approach</Label>
-            <Textarea
-              id="approach"
-              placeholder="Brief explanation of your solution..."
+            <MarkdownEditor
               value={formData.approach}
-              onChange={(e) =>
-                setFormData({ ...formData, approach: e.target.value })
+              onChange={(value) =>
+                setFormData({ ...formData, approach: value })
               }
-              rows={3}
+              placeholder="Explain your approach..."
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="solution">Solution Code & Playground</Label>
-            <PythonPlayground
-              initialCode={
-                formData.solution ||
-                "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
-              }
-              onCodeChange={(newCode) =>
-                setFormData({ ...formData, solution: newCode })
-              }
-              readOnly={false}
-            />
+            <Tabs defaultValue="python" className="w-full">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="python">Python</TabsTrigger>
+                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+              </TabsList>
+              <TabsContent value="python">
+                <PythonPlayground
+                  initialCode={
+                    formData.solution ||
+                    "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
+                  }
+                  onCodeChange={(newCode) =>
+                    setFormData({ ...formData, solution: newCode })
+                  }
+                  readOnly={false}
+                  onExpand={() => setShowFullscreenPlayground(true)}
+                  showExpandButton={true}
+                />
+              </TabsContent>
+              <TabsContent value="typescript">
+                <TypeScriptEditor
+                  initialCode={
+                    formData.solutionTypeScript ||
+                    "// Write your TypeScript solution here\nfunction solution(): void {\n  // Your code\n}\n\nconsole.log(solution());"
+                  }
+                  onCodeChange={(newCode) =>
+                    setFormData({ ...formData, solutionTypeScript: newCode })
+                  }
+                  readOnly={false}
+                  onExpand={() => setShowFullscreenPlayground(true)}
+                  showExpandButton={true}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
 
           <div className="space-y-2">
@@ -261,6 +292,27 @@ export function AddProblem() {
           </Button>
         </form>
       </CardContent>
+
+      {/* Fullscreen Playground Modal */}
+      <FullscreenPlayground
+        open={showFullscreenPlayground}
+        onClose={() => setShowFullscreenPlayground(false)}
+        pythonCode={
+          formData.solution ||
+          "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
+        }
+        typescriptCode={
+          formData.solutionTypeScript ||
+          "// Write your TypeScript solution here\nfunction solution(): void {\n  // Your code\n}\n\nconsole.log(solution());"
+        }
+        onPythonCodeChange={(newCode) =>
+          setFormData({ ...formData, solution: newCode })
+        }
+        onTypeScriptCodeChange={(newCode) =>
+          setFormData({ ...formData, solutionTypeScript: newCode })
+        }
+        readOnly={false}
+      />
     </Card>
   );
 }

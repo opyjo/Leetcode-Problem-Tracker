@@ -26,6 +26,7 @@ export interface Database {
           target_time: number;
           notes: string;
           solution: string;
+          solution_typescript: string | null;
           mistakes: Json;
           leetcode_url: string | null;
           created_at: string;
@@ -47,6 +48,7 @@ export interface Database {
           target_time: number;
           notes?: string;
           solution?: string;
+          solution_typescript?: string | null;
           mistakes?: Json;
           leetcode_url?: string | null;
           created_at?: string;
@@ -68,6 +70,7 @@ export interface Database {
           target_time?: number;
           notes?: string;
           solution?: string;
+          solution_typescript?: string | null;
           mistakes?: Json;
           leetcode_url?: string | null;
           created_at?: string;

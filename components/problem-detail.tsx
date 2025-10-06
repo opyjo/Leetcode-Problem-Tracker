@@ -34,6 +34,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { PATTERNS, DIFFICULTIES, type Problem } from "@/lib/types";
 import { PythonPlayground } from "@/components/python-playground";
+import { TypeScriptEditor } from "@/components/typescript-playground";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase";
 
 interface ProblemDetailProps {
@@ -81,6 +83,7 @@ export function ProblemDetail({
           confidence: editedProblem.confidence,
           notes: editedProblem.notes,
           solution: editedProblem.solution,
+          solution_typescript: editedProblem.solutionTypeScript || null,
           leetcode_url: editedProblem.leetcodeUrl || null,
         })
         .eq("id", editedProblem.id);
@@ -140,6 +143,12 @@ export function ProblemDetail({
   const handleCodeChange = (newCode: string) => {
     if (editedProblem) {
       setEditedProblem({ ...editedProblem, solution: newCode });
+    }
+  };
+
+  const handleTypeScriptCodeChange = (newCode: string) => {
+    if (editedProblem) {
+      setEditedProblem({ ...editedProblem, solutionTypeScript: newCode });
     }
   };
 
@@ -417,19 +426,39 @@ export function ProblemDetail({
             )}
           </div>
 
-          {/* Solution with Python Playground */}
+          {/* Solution with Code Playground */}
           <div>
             <Label className="text-base font-semibold mb-2 block">
               Solution Code & Playground
             </Label>
-            <PythonPlayground
-              initialCode={
-                currentProblem.solution ||
-                "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
-              }
-              onCodeChange={isEditing ? handleCodeChange : undefined}
-              readOnly={!isEditing}
-            />
+            <Tabs defaultValue="python" className="w-full">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="python">Python</TabsTrigger>
+                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+              </TabsList>
+              <TabsContent value="python">
+                <PythonPlayground
+                  initialCode={
+                    currentProblem.solution ||
+                    "# Write your Python solution here\ndef solution():\n    # Your code\n    pass\n\nprint(solution())"
+                  }
+                  onCodeChange={isEditing ? handleCodeChange : undefined}
+                  readOnly={!isEditing}
+                />
+              </TabsContent>
+              <TabsContent value="typescript">
+                <TypeScriptEditor
+                  initialCode={
+                    currentProblem.solutionTypeScript ||
+                    "// Write your TypeScript solution here\nfunction solution(): void {\n  // Your code\n}\n\nconsole.log(solution());"
+                  }
+                  onCodeChange={
+                    isEditing ? handleTypeScriptCodeChange : undefined
+                  }
+                  readOnly={!isEditing}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* LeetCode URL */}

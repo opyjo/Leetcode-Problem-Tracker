@@ -14,6 +14,8 @@ interface PythonPlaygroundProps {
   readOnly?: boolean;
   className?: string;
   height?: string;
+  onExpand?: () => void;
+  showExpandButton?: boolean;
 }
 
 export const PythonPlayground = ({
@@ -22,6 +24,8 @@ export const PythonPlayground = ({
   readOnly = false,
   className = "",
   height = "500px",
+  onExpand,
+  showExpandButton = true,
 }: PythonPlaygroundProps) => {
   const [code, setCode] = useState(initialCode);
   const [output, setOutput] = useState("");
@@ -205,6 +209,16 @@ export const PythonPlayground = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {showExpandButton && onExpand && (
+            <button
+              onClick={onExpand}
+              className="px-3 py-1.5 text-xs font-medium bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+              title="Expand to fullscreen"
+              type="button"
+            >
+              ⛶ Expand
+            </button>
+          )}
           {!readOnly && (
             <button
               onClick={handleReset}
