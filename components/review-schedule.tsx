@@ -1,99 +1,183 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, Brain, ExternalLink, ChevronDown, ChevronUp } from "lucide-react"
-import { type Problem, calculateNextReview } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Calendar,
+  Clock,
+  Brain,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { type Problem, type Attempt, calculateNextReview } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 export function ReviewSchedule() {
-  const [problems, setProblems] = useState<Problem[]>([])
-  const [dueProblems, setDueProblems] = useState<Problem[]>([])
-  const [upcomingProblems, setUpcomingProblems] = useState<Problem[]>([])
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const { toast } = useToast()
+  const [problems, setProblems] = useState<Problem[]>([]);
+  const [dueProblems, setDueProblems] = useState<Problem[]>([]);
+  const [upcomingProblems, setUpcomingProblems] = useState<Problem[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    loadProblems()
-  }, [])
+    loadProblems();
 
-  const loadProblems = () => {
-    const stored = JSON.parse(localStorage.getItem("leetcode-problems") || "[]")
-    setProblems(stored)
+    // Listen for updates
+    const handleUpdate = () => loadProblems();
+    window.addEventListener("problems-updated", handleUpdate);
+    return () => window.removeEventListener("problems-updated", handleUpdate);
+  }, []);
 
-    const now = new Date()
-    const due: Problem[] = []
-    const upcoming: Problem[] = []
+  const loadProblems = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from("problems")
+        .select("*")
+        .order("next_review", { ascending: true });
 
-    stored.forEach((problem: Problem) => {
-      const nextReview = new Date(problem.nextReview)
-      if (nextReview <= now) {
-        due.push(problem)
-      } else {
-        upcoming.push(problem)
-      }
-    })
+      if (error) throw error;
 
-    // Sort by next review date
-    due.sort((a, b) => new Date(a.nextReview).getTime() - new Date(b.nextReview).getTime())
-    upcoming.sort((a, b) => new Date(a.nextReview).getTime() - new Date(b.nextReview).getTime())
+      // Transform database rows to Problem type
+      const transformedProblems: Problem[] = (data || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        pattern: row.pattern,
+        difficulty: row.difficulty as "Easy" | "Medium" | "Hard",
+        keyClue: row.key_clue,
+        approach: row.approach,
+        dateSolved: row.date_solved,
+        confidence: row.confidence,
+        lastReviewed: row.last_reviewed,
+        nextReview: row.next_review,
+        reviewCount: row.review_count,
+        attempts: (row.attempts as Attempt[]) || [],
+        targetTime: row.target_time,
+        notes: row.notes,
+        solution: row.solution,
+        mistakes: (row.mistakes as string[]) || [],
+        leetcodeUrl: row.leetcode_url || undefined,
+      }));
 
-    setDueProblems(due)
-    setUpcomingProblems(upcoming)
-  }
+      setProblems(transformedProblems);
 
-  const markAsReviewed = (problemId: string, confidence: number) => {
-    const updatedProblems = problems.map((p) => {
-      if (p.id === problemId) {
-        const now = new Date().toISOString()
-        const newReviewCount = confidence >= 4 ? p.reviewCount + 1 : p.reviewCount
-        return {
-          ...p,
-          confidence,
-          lastReviewed: now,
-          nextReview: calculateNextReview(confidence, newReviewCount).toISOString(),
-          reviewCount: newReviewCount,
+      const now = new Date();
+      const due: Problem[] = [];
+      const upcoming: Problem[] = [];
+
+      transformedProblems.forEach((problem: Problem) => {
+        const nextReview = new Date(problem.nextReview);
+        if (nextReview <= now) {
+          due.push(problem);
+        } else {
+          upcoming.push(problem);
         }
-      }
-      return p
-    })
+      });
 
-    localStorage.setItem("leetcode-problems", JSON.stringify(updatedProblems))
-    loadProblems()
+      // Sort by next review date
+      due.sort(
+        (a, b) =>
+          new Date(a.nextReview).getTime() - new Date(b.nextReview).getTime()
+      );
+      upcoming.sort(
+        (a, b) =>
+          new Date(a.nextReview).getTime() - new Date(b.nextReview).getTime()
+      );
 
-    toast({
-      title: "Review recorded!",
-      description: `Next review scheduled based on confidence level ${confidence}`,
-    })
-  }
+      setDueProblems(due);
+      setUpcomingProblems(upcoming);
+    } catch (error) {
+      console.error("Error loading problems:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load problems",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const markAsReviewed = async (problemId: string, confidence: number) => {
+    try {
+      const problem = problems.find((p) => p.id === problemId);
+      if (!problem) return;
+
+      const now = new Date().toISOString();
+      const newReviewCount =
+        confidence >= 4 ? problem.reviewCount + 1 : problem.reviewCount;
+      const nextReview = calculateNextReview(
+        confidence,
+        newReviewCount
+      ).toISOString();
+
+      const { error } = await supabase
+        .from("problems")
+        .update({
+          confidence,
+          last_reviewed: now,
+          next_review: nextReview,
+          review_count: newReviewCount,
+        })
+        .eq("id", problemId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Review recorded!",
+        description: `Next review scheduled based on confidence level ${confidence}`,
+      });
+
+      loadProblems();
+      window.dispatchEvent(new Event("problems-updated"));
+    } catch (error) {
+      console.error("Error marking as reviewed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update review status",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getDaysUntil = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diff = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    return diff
-  }
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = Math.ceil(
+      (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    return diff;
+  };
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence <= 2) return "bg-destructive"
-    if (confidence === 3) return "bg-yellow-500"
-    return "bg-success"
-  }
+    if (confidence <= 2) return "bg-destructive";
+    if (confidence === 3) return "bg-yellow-500";
+    return "bg-success";
+  };
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case "Easy":
-        return "bg-success"
+        return "bg-success";
       case "Medium":
-        return "bg-yellow-500"
+        return "bg-yellow-500";
       case "Hard":
-        return "bg-destructive"
+        return "bg-destructive";
       default:
-        return "bg-muted"
+        return "bg-muted";
     }
-  }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -121,7 +205,9 @@ export function ReviewSchedule() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{upcomingProblems.length}</p>
-                <p className="text-sm text-muted-foreground">Upcoming Reviews</p>
+                <p className="text-sm text-muted-foreground">
+                  Upcoming Reviews
+                </p>
               </div>
             </div>
           </CardContent>
@@ -154,11 +240,16 @@ export function ReviewSchedule() {
         </CardHeader>
         <CardContent className="space-y-3">
           {dueProblems.map((problem) => (
-            <div key={problem.id} className="border border-border rounded-lg p-4 space-y-3">
+            <div
+              key={problem.id}
+              className="border border-border rounded-lg p-4 space-y-3"
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="font-medium text-foreground truncate">{problem.name}</h3>
+                    <h3 className="font-medium text-foreground truncate">
+                      {problem.name}
+                    </h3>
                     {problem.leetcodeUrl && (
                       <a
                         href={problem.leetcodeUrl}
@@ -171,25 +262,41 @@ export function ReviewSchedule() {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <Badge variant="outline" className={getDifficultyColor(problem.difficulty)}>
+                    <Badge
+                      variant="outline"
+                      className={getDifficultyColor(problem.difficulty)}
+                    >
                       {problem.difficulty}
                     </Badge>
                     <Badge variant="outline">{problem.pattern}</Badge>
                     <span className="text-muted-foreground">
-                      Last reviewed: {new Date(problem.lastReviewed).toLocaleDateString()}
+                      Last reviewed:{" "}
+                      {new Date(problem.lastReviewed).toLocaleDateString()}
                     </span>
                     <div className="flex items-center gap-1">
-                      <div className={`w-2 h-2 rounded-full ${getConfidenceColor(problem.confidence)}`} />
-                      <span className="text-muted-foreground">Confidence: {problem.confidence}/5</span>
+                      <div
+                        className={`w-2 h-2 rounded-full ${getConfidenceColor(
+                          problem.confidence
+                        )}`}
+                      />
+                      <span className="text-muted-foreground">
+                        Confidence: {problem.confidence}/5
+                      </span>
                     </div>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setExpandedId(expandedId === problem.id ? null : problem.id)}
+                  onClick={() =>
+                    setExpandedId(expandedId === problem.id ? null : problem.id)
+                  }
                 >
-                  {expandedId === problem.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  {expandedId === problem.id ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
 
@@ -197,20 +304,26 @@ export function ReviewSchedule() {
                 <div className="space-y-3 pt-3 border-t border-border">
                   <div>
                     <h4 className="text-sm font-medium mb-1">Key Clue:</h4>
-                    <p className="text-sm text-muted-foreground">{problem.keyClue}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {problem.keyClue}
+                    </p>
                   </div>
 
                   {problem.approach && (
                     <div>
                       <h4 className="text-sm font-medium mb-1">Approach:</h4>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{problem.approach}</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {problem.approach}
+                      </p>
                     </div>
                   )}
 
                   {problem.notes && (
                     <div>
                       <h4 className="text-sm font-medium mb-1">Notes:</h4>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{problem.notes}</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {problem.notes}
+                      </p>
                     </div>
                   )}
 
@@ -224,12 +337,16 @@ export function ReviewSchedule() {
                   )}
 
                   <div>
-                    <h4 className="text-sm font-medium mb-2">How confident are you now?</h4>
+                    <h4 className="text-sm font-medium mb-2">
+                      How confident are you now?
+                    </h4>
                     <div className="flex gap-2">
                       {[1, 2, 3, 4, 5].map((level) => (
                         <Button
                           key={level}
-                          variant={problem.confidence === level ? "default" : "outline"}
+                          variant={
+                            problem.confidence === level ? "default" : "outline"
+                          }
                           size="sm"
                           onClick={() => markAsReviewed(problem.id, level)}
                           className="flex-1"
@@ -238,7 +355,9 @@ export function ReviewSchedule() {
                         </Button>
                       ))}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2">1 = Need to review soon | 5 = Fully mastered</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      1 = Need to review soon | 5 = Fully mastered
+                    </p>
                   </div>
                 </div>
               )}
@@ -251,36 +370,53 @@ export function ReviewSchedule() {
       <Card>
         <CardHeader>
           <CardTitle>Upcoming Reviews</CardTitle>
-          <CardDescription>Problems scheduled for future review</CardDescription>
+          <CardDescription>
+            Problems scheduled for future review
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {upcomingProblems.slice(0, 10).map((problem) => {
-            const daysUntil = getDaysUntil(problem.nextReview)
+            const daysUntil = getDaysUntil(problem.nextReview);
             return (
-              <div key={problem.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+              <div
+                key={problem.id}
+                className="flex items-center justify-between p-3 border border-border rounded-lg"
+              >
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-foreground truncate">{problem.name}</h3>
+                  <h3 className="font-medium text-foreground truncate">
+                    {problem.name}
+                  </h3>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Badge variant="outline" className="text-xs">
                       {problem.pattern}
                     </Badge>
                     <div className="flex items-center gap-1">
-                      <div className={`w-2 h-2 rounded-full ${getConfidenceColor(problem.confidence)}`} />
+                      <div
+                        className={`w-2 h-2 rounded-full ${getConfidenceColor(
+                          problem.confidence
+                        )}`}
+                      />
                       <span>Confidence: {problem.confidence}/5</span>
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium">
-                    {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `In ${daysUntil} days`}
+                    {daysUntil === 0
+                      ? "Today"
+                      : daysUntil === 1
+                      ? "Tomorrow"
+                      : `In ${daysUntil} days`}
                   </p>
-                  <p className="text-xs text-muted-foreground">{new Date(problem.nextReview).toLocaleDateString()}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(problem.nextReview).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
-            )
+            );
           })}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

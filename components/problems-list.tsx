@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -23,16 +24,15 @@ import {
   type Problem,
   type Attempt,
 } from "@/lib/types";
-import { ProblemDetail } from "./problem-detail";
 import { supabase } from "@/lib/supabase";
 
 export function ProblemsList() {
+  const router = useRouter();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [filteredProblems, setFilteredProblems] = useState<Problem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [patternFilter, setPatternFilter] = useState("all");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
-  const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -225,7 +225,7 @@ export function ProblemsList() {
                       <tr
                         key={problem.id}
                         className="border-t border-border hover:bg-muted/50 cursor-pointer transition-colors"
-                        onClick={() => setSelectedProblem(problem)}
+                        onClick={() => router.push(`/problem/${problem.id}`)}
                       >
                         <td className="px-4 py-3 text-sm font-medium">
                           {problem.name}
@@ -279,13 +279,6 @@ export function ProblemsList() {
           </div>
         </CardContent>
       </Card>
-
-      <ProblemDetail
-        problem={selectedProblem}
-        open={!!selectedProblem}
-        onClose={() => setSelectedProblem(null)}
-        onUpdate={loadProblems}
-      />
     </div>
   );
 }
