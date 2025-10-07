@@ -7,6 +7,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Editor from "@monaco-editor/react";
 
 interface PythonPlaygroundProps {
   initialCode?: string;
@@ -33,7 +34,6 @@ export const PythonPlayground = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [pyodideReady, setPyodideReady] = useState(false);
   const [error, setError] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pyodideRef = useRef<any>(null);
 
   // Initialize Pyodide (Python WebAssembly runtime)
@@ -93,46 +93,10 @@ export const PythonPlayground = ({
     setCode(initialCode);
   }, [initialCode]);
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height =
-        textareaRef.current.scrollHeight + "px";
-    }
-  }, [code]);
-
-  const handleCodeChange = (newCode: string) => {
-    if (readOnly) return;
+  const handleCodeChange = (newCode: string | undefined) => {
+    if (readOnly || !newCode) return;
     setCode(newCode);
     onCodeChange?.(newCode);
-  };
-
-  // Keyboard shortcuts
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (readOnly) return;
-
-    // Tab = 4 spaces
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const start = e.currentTarget.selectionStart;
-      const end = e.currentTarget.selectionEnd;
-      const newValue = code.substring(0, start) + "    " + code.substring(end);
-      handleCodeChange(newValue);
-
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart =
-            textareaRef.current.selectionEnd = start + 4;
-        }
-      }, 0);
-    }
-
-    // Ctrl/Cmd + Enter = Run
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleRunCode();
-    }
   };
 
   const handleRunCode = async () => {
@@ -181,9 +145,6 @@ export const PythonPlayground = ({
     setIsSuccess(false);
     onCodeChange?.(initialCode);
   };
-
-  const lineCount = code.split("\n").length;
-  const lineNumberWidth = Math.max(lineCount.toString().length * 8 + 16, 48);
 
   return (
     <div
@@ -246,39 +207,35 @@ export const PythonPlayground = ({
         style={{ height: `calc(${height} - 48px)` }}
       >
         {/* Code Editor */}
-        <div className="flex-1 relative bg-gray-900 text-gray-100 overflow-hidden">
-          {/* Line Numbers */}
-          <div
-            className="absolute left-0 top-0 px-3 py-4 text-gray-500 font-mono text-sm pointer-events-none select-none border-r border-gray-700 bg-gray-800"
-            style={{ width: lineNumberWidth }}
-          >
-            {code.split("\n").map((_, index) => (
-              <div
-                key={`line-${index}`}
-                style={{ lineHeight: "1.5", height: "21px" }}
-              >
-                {index + 1}
-              </div>
-            ))}
-          </div>
-
-          {/* Code Textarea */}
-          <textarea
-            ref={textareaRef}
+        <div className="flex-1 relative overflow-hidden">
+          <Editor
+            height="100%"
+            defaultLanguage="python"
             value={code}
-            onChange={(e) => handleCodeChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full h-full bg-transparent text-gray-100 font-mono text-sm resize-none border-0 outline-none overflow-auto"
-            placeholder="Write your Python code here..."
-            spellCheck={false}
-            readOnly={readOnly}
-            style={{
-              lineHeight: "1.5",
+            onChange={handleCodeChange}
+            theme="vs-dark"
+            options={{
+              readOnly,
+              minimap: { enabled: false },
+              fontSize: 14,
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
               tabSize: 4,
-              paddingLeft: lineNumberWidth + 16,
-              paddingRight: "16px",
-              paddingTop: "16px",
-              paddingBottom: "16px",
+              insertSpaces: true,
+              formatOnPaste: true,
+              formatOnType: true,
+              wordWrap: "on",
+              padding: { top: 16, bottom: 16 },
+            }}
+            onMount={(editor, monaco) => {
+              // Add keybinding for Ctrl/Cmd + Enter to run code
+              editor.addCommand(
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+                () => {
+                  handleRunCode();
+                }
+              );
             }}
           />
         </div>
@@ -331,11 +288,14 @@ export const PythonPlayground = ({
       {/* Footer */}
       <div className="bg-gray-800 px-4 py-2 text-center border-t border-gray-700">
         <span className="text-xs text-gray-400">
-          Press{" "}
           <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs font-mono">
             Ctrl+Enter
           </kbd>{" "}
           to run •{" "}
+          <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs font-mono ml-1">
+            Ctrl+Space
+          </kbd>{" "}
+          for IntelliSense •{" "}
           <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs font-mono ml-1">
             Tab
           </kbd>{" "}

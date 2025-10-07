@@ -1,19 +1,24 @@
 "use client";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PythonPlayground } from "@/components/python-playground";
 import { TypeScriptEditor } from "@/components/typescript-playground";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FullscreenPlaygroundProps {
-  open: boolean;
-  onClose: () => void;
-  pythonCode: string;
-  typescriptCode: string;
-  onPythonCodeChange?: (code: string) => void;
-  onTypeScriptCodeChange?: (code: string) => void;
-  readOnly?: boolean;
-  defaultLanguage?: "python" | "typescript";
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly pythonCode: string;
+  readonly typescriptCode: string;
+  readonly onPythonCodeChange?: (code: string) => void;
+  readonly onTypeScriptCodeChange?: (code: string) => void;
+  readonly readOnly?: boolean;
+  readonly defaultLanguage?: "python" | "typescript";
 }
 
 export function FullscreenPlayground({
@@ -29,6 +34,9 @@ export function FullscreenPlayground({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] h-[95vh] p-6">
+        <DialogHeader>
+          <DialogTitle>Code Playground</DialogTitle>
+        </DialogHeader>
         <Tabs
           defaultValue={defaultLanguage}
           className="w-full h-full flex flex-col"
@@ -43,7 +51,8 @@ export function FullscreenPlayground({
               initialCode={pythonCode}
               onCodeChange={onPythonCodeChange}
               readOnly={readOnly}
-              height="calc(95vh - 120px)"
+              height="calc(95vh - 160px)"
+              showExpandButton={false}
             />
           </TabsContent>
 
@@ -52,7 +61,8 @@ export function FullscreenPlayground({
               initialCode={typescriptCode}
               onCodeChange={onTypeScriptCodeChange}
               readOnly={readOnly}
-              height="calc(95vh - 120px)"
+              height="calc(95vh - 160px)"
+              showExpandButton={false}
             />
           </TabsContent>
         </Tabs>

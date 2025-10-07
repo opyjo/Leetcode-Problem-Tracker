@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
+import Editor from "@monaco-editor/react";
 
 interface TypeScriptEditorProps {
-  initialCode?: string;
-  onCodeChange?: (code: string) => void;
-  onRunComplete?: (output: string, success: boolean) => void;
-  className?: string;
-  height?: string;
-  readOnly?: boolean;
-  onExpand?: () => void;
-  showExpandButton?: boolean;
+  readonly initialCode?: string;
+  readonly onCodeChange?: (code: string) => void;
+  readonly onRunComplete?: (output: string, success: boolean) => void;
+  readonly className?: string;
+  readonly height?: string;
+  readonly readOnly?: boolean;
+  readonly onExpand?: () => void;
+  readonly showExpandButton?: boolean;
 }
 
 export function TypeScriptEditor({
@@ -28,47 +29,11 @@ export function TypeScriptEditor({
   const [isRunning, setIsRunning] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height =
-        textareaRef.current.scrollHeight + "px";
-    }
-  }, [code]);
-
-  const handleCodeChange = (newCode: string) => {
+  const handleCodeChange = (newCode: string | undefined) => {
+    if (!newCode) return;
     setCode(newCode);
     onCodeChange?.(newCode);
-  };
-
-  // Keyboard shortcuts
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (readOnly) return;
-
-    // Tab = 2 spaces (TypeScript convention)
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const start = e.currentTarget.selectionStart;
-      const end = e.currentTarget.selectionEnd;
-      const newValue = code.substring(0, start) + "  " + code.substring(end);
-      handleCodeChange(newValue);
-
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart =
-            textareaRef.current.selectionEnd = start + 2;
-        }
-      }, 0);
-    }
-
-    // Ctrl/Cmd + Enter = Run
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleRunCode();
-    }
   };
 
   const handleRunCode = async () => {
@@ -90,23 +55,60 @@ export function TypeScriptEditor({
             .map((arg) => {
               if (arg === null) return "null";
               if (arg === undefined) return "undefined";
-              if (typeof arg === "object") {
+              if (typeof arg === "object" && arg !== null) {
                 try {
                   return JSON.stringify(arg, null, 2);
                 } catch {
-                  return String(arg);
+                  return String(Object.prototype.toString.call(arg));
                 }
               }
-              return String(arg);
+              // Handle primitives (string, number, boolean, symbol, bigint)
+              if (typeof arg === "string") return arg;
+              if (typeof arg === "number") return String(arg);
+              if (typeof arg === "boolean") return String(arg);
+              if (typeof arg === "symbol") return String(arg);
+              if (typeof arg === "bigint") return String(arg);
+              // Fallback for function type
+              if (typeof arg === "function")
+                return `[Function: ${(arg as () => void).name || "anonymous"}]`;
+              return "[Unknown]";
             })
             .join(" ")
         );
       };
       console.error = (...args: unknown[]) => {
-        logs.push("ERROR: " + args.map((arg) => String(arg)).join(" "));
+        logs.push(
+          "ERROR: " +
+            args
+              .map((arg) => {
+                if (typeof arg === "object" && arg !== null) {
+                  try {
+                    return JSON.stringify(arg);
+                  } catch {
+                    return String(Object.prototype.toString.call(arg));
+                  }
+                }
+                return String(arg);
+              })
+              .join(" ")
+        );
       };
       console.warn = (...args: unknown[]) => {
-        logs.push("WARNING: " + args.map((arg) => String(arg)).join(" "));
+        logs.push(
+          "WARNING: " +
+            args
+              .map((arg) => {
+                if (typeof arg === "object" && arg !== null) {
+                  try {
+                    return JSON.stringify(arg);
+                  } catch {
+                    return String(Object.prototype.toString.call(arg));
+                  }
+                }
+                return String(arg);
+              })
+              .join(" ")
+        );
       };
 
       try {
@@ -171,9 +173,6 @@ export function TypeScriptEditor({
     onCodeChange?.(initialCode);
   };
 
-  const lineCount = code.split("\n").length;
-  const lineNumberWidth = lineCount.toString().length * 8 + 16;
-
   return (
     <div
       className={`border border-blue-700 rounded-lg overflow-hidden shadow-lg ${className}`}
@@ -223,39 +222,96 @@ export function TypeScriptEditor({
         style={{ height: `calc(${height} - 48px)` }}
       >
         {/* Code Editor */}
-        <div className="flex-1 relative bg-gray-900 text-gray-100 overflow-hidden">
-          {/* Line Numbers */}
-          <div
-            className="absolute left-0 top-0 px-3 py-4 text-gray-500 font-mono text-sm pointer-events-none select-none border-r border-blue-800 bg-gray-800"
-            style={{ width: lineNumberWidth }}
-          >
-            {code.split("\n").map((line, index) => (
-              <div
-                key={`${index}-${line.substring(0, 10)}`}
-                style={{ lineHeight: "1.5", height: "21px" }}
-              >
-                {index + 1}
-              </div>
-            ))}
-          </div>
-
-          {/* Code Textarea */}
-          <textarea
-            ref={textareaRef}
+        <div className="flex-1 relative overflow-hidden">
+          <Editor
+            height="100%"
+            defaultLanguage="typescript"
+            defaultPath="file:///main.ts"
             value={code}
-            onChange={(e) => handleCodeChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            readOnly={readOnly}
-            className="w-full h-full bg-transparent text-gray-100 font-mono text-sm resize-none border-0 outline-none overflow-auto"
-            placeholder="Write your TypeScript code here..."
-            spellCheck={false}
-            style={{
-              lineHeight: "1.5",
+            onChange={handleCodeChange}
+            theme="vs-dark"
+            options={{
+              readOnly,
+              minimap: { enabled: false },
+              fontSize: 14,
+              lineNumbers: "on",
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
               tabSize: 2,
-              paddingLeft: lineNumberWidth + 16,
-              paddingRight: "16px",
-              paddingTop: "16px",
-              paddingBottom: "16px",
+              insertSpaces: true,
+              formatOnPaste: true,
+              formatOnType: true,
+              wordWrap: "on",
+              padding: { top: 16, bottom: 16 },
+              quickSuggestions: {
+                other: true,
+                comments: false,
+                strings: true,
+              },
+            }}
+            onMount={(editor, monaco) => {
+              // Configure TypeScript formatting to use semicolons and disable lint errors
+              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions(
+                {
+                  noSemanticValidation: true, // Disable semantic validation
+                  noSyntaxValidation: false,
+                  diagnosticCodesToIgnore: [
+                    1108, // 'return' statement not in function
+                    2304, // Cannot find name
+                    2552, // Cannot find name (did you mean)
+                    2683, // 'this' implicitly has type 'any'
+                    7027, // Unreachable code detected
+                  ],
+                }
+              );
+
+              monaco.languages.typescript.typescriptDefaults.setCompilerOptions(
+                {
+                  target: monaco.languages.typescript.ScriptTarget.ES2020,
+                  allowNonTsExtensions: true,
+                  moduleResolution:
+                    monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+                  module: monaco.languages.typescript.ModuleKind.CommonJS,
+                  noEmit: true,
+                  esModuleInterop: true,
+                  jsx: monaco.languages.typescript.JsxEmit.React,
+                  reactNamespace: "React",
+                  allowJs: true,
+                  lib: ["es2020"],
+                  strict: false,
+                  skipLibCheck: true,
+                  noUnusedLocals: false,
+                  noUnusedParameters: false,
+                  noImplicitAny: false,
+                  noImplicitReturns: false,
+                  noFallthroughCasesInSwitch: false,
+                }
+              );
+
+              // Add keybinding for Ctrl/Cmd + Enter to run code
+              editor.addCommand(
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+                () => {
+                  handleRunCode();
+                }
+              );
+
+              // Add format document command with Monaco's built-in formatter
+              editor.addCommand(
+                monaco.KeyMod.CtrlCmd |
+                  monaco.KeyMod.Shift |
+                  monaco.KeyCode.KeyF,
+                () => {
+                  editor.getAction("editor.action.formatDocument")?.run();
+                }
+              );
+
+              // Auto format on paste
+              editor.onDidPaste(() => {
+                setTimeout(() => {
+                  editor.getAction("editor.action.formatDocument")?.run();
+                }, 100);
+              });
             }}
           />
         </div>
@@ -305,15 +361,18 @@ export function TypeScriptEditor({
       {/* Footer */}
       <div className="bg-blue-900 px-4 py-2 text-center border-t border-blue-800">
         <span className="text-xs text-blue-200">
-          Press{" "}
           <kbd className="px-1.5 py-0.5 bg-blue-800 rounded text-xs font-mono">
             Ctrl+Enter
           </kbd>{" "}
           to run •{" "}
           <kbd className="px-1.5 py-0.5 bg-blue-800 rounded text-xs font-mono ml-1">
-            Tab
+            Ctrl+Shift+F
           </kbd>{" "}
-          for indentation
+          to format •{" "}
+          <kbd className="px-1.5 py-0.5 bg-blue-800 rounded text-xs font-mono ml-1">
+            Ctrl+Space
+          </kbd>{" "}
+          for IntelliSense
         </span>
       </div>
     </div>

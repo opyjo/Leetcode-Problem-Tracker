@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ export function ProblemDetail({
   onUpdate,
 }: ProblemDetailProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [editedProblem, setEditedProblem] = useState<Problem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,6 +66,11 @@ export function ProblemDetail({
   const handleCancel = () => {
     setEditedProblem(null);
     setIsEditing(false);
+  };
+
+  const handleExpandPlayground = (language: "python" | "typescript") => {
+    if (!problem) return;
+    router.push(`/playground/${problem.id}?lang=${language}`);
   };
 
   const handleSave = async () => {
@@ -444,6 +451,8 @@ export function ProblemDetail({
                   }
                   onCodeChange={isEditing ? handleCodeChange : undefined}
                   readOnly={!isEditing}
+                  onExpand={() => handleExpandPlayground("python")}
+                  showExpandButton={true}
                 />
               </TabsContent>
               <TabsContent value="typescript">
@@ -456,6 +465,8 @@ export function ProblemDetail({
                     isEditing ? handleTypeScriptCodeChange : undefined
                   }
                   readOnly={!isEditing}
+                  onExpand={() => handleExpandPlayground("typescript")}
+                  showExpandButton={true}
                 />
               </TabsContent>
             </Tabs>
